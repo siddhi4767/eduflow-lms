@@ -1,13 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 import { auth } from "../../../../auth";
-import { v2 as cloudinary } from "cloudinary";
-
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
+import { uploadToS3 } from "../../../../lib/aws/s3";
 
 export async function POST(req: Request) {
   try {
@@ -57,18 +51,8 @@ export async function POST(req: Request) {
         const bytes = await file.arrayBuffer();
         const buffer = Buffer.from(bytes);
 
-        const uploadResult = await new Promise((resolve, reject) => {
-          const uploadStream = cloudinary.uploader.upload_stream(
-            { folder: "eduflow-assignments" },
-            (error, result) => {
-              if (error) reject(error);
-              else resolve(result);
-            }
-          );
-          uploadStream.end(buffer);
-        });
-
-        fileUrl = (uploadResult as any).secure_url;
+        // Upload to AWS S3
+        fileUrl = await uploadToS3(buffer, file.name, file.type, "eduflow-assignments");
       }
 
       const submission = await prisma.$transaction(async (tx) => {

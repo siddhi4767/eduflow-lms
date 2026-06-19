@@ -1,13 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "../../../../auth";
-import { v2 as cloudinary } from "cloudinary";
+import { uploadToS3 } from "../../../../lib/aws/s3";
 import { hasRole } from "../../../../lib/rbac";
-
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
 
 export async function POST(req: Request) {
   try {
@@ -38,19 +32,8 @@ export async function POST(req: Request) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // Upload to Cloudinary using a stream
-    const uploadResult = await new Promise((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
-        { folder: "eduflow-courses" },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
-        }
-      );
-      uploadStream.end(buffer);
-    });
-
-    const imageUrl = (uploadResult as any).secure_url;
+    // Upload to AWS S3
+    const imageUrl = await uploadToS3(buffer, file.name, file.type, "eduflow-courses");
 
     return NextResponse.json({ imageUrl }, { status: 200 });
   } catch (error: any) {

@@ -1,13 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "../../../lib/prisma";
 import { auth } from "../../../../auth";
-import { v2 as cloudinary } from "cloudinary";
-
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
+import { uploadToS3 } from "../../../../lib/aws/s3";
 
 export async function POST(req: Request) {
   try {
@@ -38,20 +32,8 @@ export async function POST(req: Request) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    console.log("Attempting upload to Cloudinary...");
-    // Upload to Cloudinary using a stream
-    const uploadResult = await new Promise((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
-        { folder: "eduflow-profiles" },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
-        }
-      );
-      uploadStream.end(buffer);
-    });
-
-    const imageUrl = (uploadResult as any).secure_url;
+    console.log("Attempting upload to AWS S3...");
+    const imageUrl = await uploadToS3(buffer, file.name, file.type, "eduflow-profiles");
     console.log("Upload successful, URL:", imageUrl);
 
     // Update user image in Prisma
