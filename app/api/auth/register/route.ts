@@ -9,6 +9,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "../../../lib/prisma";
+import { dbAdapter } from "../../../../lib/db-adapter";
 import { generateVerificationToken } from "../../../../lib/tokens";
 import { sendVerificationEmail } from "../../../../lib/mail";
 import { cognitoSignUp } from "../../../../lib/aws/cognito";
@@ -52,9 +53,9 @@ export async function POST(req: Request) {
       // Continuing for now to ensure local DB state is maintained
     }
 
-    // Hash password and create user
+    // Hash password and create user using dual-write dbAdapter
     const hashedPassword = await bcrypt.hash(password, 10);
-    await prisma.user.create({
+    await dbAdapter.user.create({
       data: {
         name,
         email,

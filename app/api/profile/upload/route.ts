@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "../../../lib/prisma";
+import { dbAdapter } from "../../../../lib/db-adapter";
 import { auth } from "../../../../auth";
 import { uploadToS3 } from "../../../../lib/aws/s3";
 
@@ -36,8 +37,8 @@ export async function POST(req: Request) {
     const imageUrl = await uploadToS3(buffer, file.name, file.type, "eduflow-profiles");
     console.log("Upload successful, URL:", imageUrl);
 
-    // Update user image in Prisma
-    const updatedUser = await prisma.user.update({
+    // Update user image in Prisma & DynamoDB (Dual-Write)
+    const updatedUser = await dbAdapter.user.update({
       where: { id: session.user.id },
       data: { image: imageUrl },
       select: {
