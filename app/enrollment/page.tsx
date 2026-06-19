@@ -1,22 +1,17 @@
 "use client";
 
-// =============================================================================
-// enrollment/page.tsx  — EduFlow LMS  |  Enrollment Module
-//
-// CHANGES:
-//   • Removed local interfaces, DEFAULT_ENROLLMENTS, STUDENT_OPTIONS, COURSE_OPTIONS
-//   • Dropdowns now populated dynamically from context (students & courses)
-//   • CRUD via useApp(), toasts via useToast()
-//   • StatBadge component retained (co-located helper)
-// =============================================================================
-
 import { useState } from "react";
 import { useApp } from "../context/AppContext";
 import { useToast } from "../context/ToastContext";
-import EnrollmentCard from "../components/EnrollmentCard";
 import ConfirmModal from "../components/ConfirmModal";
 import type { Status } from "../data/types";
 import { enrollmentSchema } from "../lib/schemas";
+import { DashboardCard } from "../components/ui/DashboardCard";
+import { StatusBadge } from "../components/ui/StatusBadge";
+import { StatCard } from "../components/ui/StatCard";
+import { UserAvatar } from "../components/ui/UserAvatar";
+import { motion } from "framer-motion";
+import { Search, Filter, Edit2, Trash2, BookOpen, Users, CheckCircle, Clock } from "lucide-react";
 
 const STATUS_OPTIONS: Status[] = ["Active", "Pending", "Completed"];
 
@@ -25,37 +20,27 @@ function todayISO(): string {
 }
 
 export default function EnrollmentPage() {
-  const {
-    students,
-    courses,
-    enrollments,
-    addEnrollment,
-    updateEnrollment,
-    deleteEnrollment,
-  } = useApp();
+  const { students, courses, enrollments, addEnrollment, updateEnrollment, deleteEnrollment, hydrated } = useApp();
   const { addToast } = useToast();
 
-  // Local form state
   const [studentName, setStudentName] = useState<string>("");
   const [courseName,  setCourseName]  = useState<string>("");
   const [status,      setStatus]      = useState<Status>("Active");
 
-  // Edit & Delete state
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-
-  // Search
   const [search, setSearch] = useState<string>("");
 
-  // Sort
   type SortField = "studentName" | "courseName" | "status" | "enrolledDate";
   const [sortField, setSortField] = useState<SortField>("enrolledDate");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
-  // Derived
-  const isEditing  = editingId !== null;
-  // Validation errors
   const [errors, setErrors] = useState<{ studentName?: string; courseName?: string }>({});
+  const isEditing = editingId !== null;
+
+  if (!hydrated) {
+    return <div className="p-10 animate-pulse bg-slate-900 h-screen" />;
+  }
 
   const filtered = enrollments.filter(
     (e) =>
@@ -69,12 +54,10 @@ export default function EnrollmentPage() {
     let valB = b[sortField].toLowerCase();
     
     if (sortField === "enrolledDate") {
-      // sort by date string
       const dateA = new Date(a.enrolledDate).getTime();
       const dateB = new Date(b.enrolledDate).getTime();
       return sortOrder === "asc" ? dateA - dateB : dateB - dateA;
     }
-
     if (valA < valB) return sortOrder === "asc" ? -1 : 1;
     if (valA > valB) return sortOrder === "asc" ? 1 : -1;
     return 0;
@@ -88,9 +71,7 @@ export default function EnrollmentPage() {
     const result = enrollmentSchema.safeParse({ studentName, courseName, enrolledDate: todayISO(), status });
     if (!result.success) {
       const fieldErrors: Record<string, string> = {};
-      result.error.issues.forEach(issue => {
-        fieldErrors[String(issue.path[0])] = issue.message;
-      });
+      result.error.issues.forEach(issue => fieldErrors[String(issue.path[0])] = issue.message);
       setErrors(fieldErrors);
       return false;
     }
@@ -98,16 +79,10 @@ export default function EnrollmentPage() {
     return true;
   }
 
-  // ── Add ────────────────────────────────────────────────────────────────
   async function handleAdd() {
     if (!validate()) return;
     try {
-      await addEnrollment({
-        studentName,
-        courseName,
-        enrolledDate: todayISO(),
-        status,
-      });
+      await addEnrollment({ studentName, courseName, enrolledDate: todayISO(), status });
       addToast("Enrollment added successfully", "success");
       resetForm();
     } catch (e: unknown) {
@@ -115,8 +90,7 @@ export default function EnrollmentPage() {
     }
   }
 
-  // ── Start editing ──────────────────────────────────────────────────────
-  function startEdit(enrollment: { id: string; studentName: string; courseName: string; status: Status }): void {
+  function startEdit(enrollment: { id: string; studentName: string; courseName: string; status: Status }) {
     setEditingId(enrollment.id);
     setStudentName(enrollment.studentName);
     setCourseName(enrollment.courseName);
@@ -124,17 +98,11 @@ export default function EnrollmentPage() {
     setErrors({});
   }
 
-  // ── Save edit ──────────────────────────────────────────────────────────
   async function handleSaveEdit() {
     if (!validate() || editingId === null) return;
     try {
       const existing = enrollments.find((e) => e.id === editingId);
-      await updateEnrollment(editingId, {
-        studentName,
-        courseName,
-        enrolledDate: existing?.enrolledDate || todayISO(),
-        status,
-      });
+      await updateEnrollment(editingId, { studentName, courseName, enrolledDate: existing?.enrolledDate || todayISO(), status });
       addToast("Enrollment updated successfully", "success");
       resetForm();
     } catch (e: unknown) {
@@ -142,10 +110,7 @@ export default function EnrollmentPage() {
     }
   }
 
-  // ── Delete ─────────────────────────────────────────────────────────────
-  function promptDelete(id: string) {
-    setDeleteId(id);
-  }
+  function promptDelete(id: string) { setDeleteId(id); }
 
   async function confirmDelete() {
     if (!deleteId) return;
@@ -160,8 +125,7 @@ export default function EnrollmentPage() {
     }
   }
 
-  // ── Reset form ─────────────────────────────────────────────────────────
-  function resetForm(): void {
+  function resetForm() {
     setStudentName("");
     setCourseName("");
     setStatus("Active");
@@ -170,7 +134,7 @@ export default function EnrollmentPage() {
   }
 
   return (
-    <div className="p-4 sm:p-8 flex-1 max-w-6xl mx-auto w-full">
+    <div className="p-6 lg:p-10 max-w-[1600px] mx-auto w-full space-y-8">
       <ConfirmModal
         isOpen={deleteId !== null}
         title="Delete Enrollment"
@@ -179,179 +143,182 @@ export default function EnrollmentPage() {
         onCancel={() => setDeleteId(null)}
         confirmText="Delete"
       />
-      {/* Page Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white">Enrollment</h1>
-        <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm">
-          Manage student course registrations
-        </p>
-      </div>
 
-      {/* Stats Row */}
-      <div className="flex gap-3 sm:gap-4 flex-wrap mb-8">
-        <StatBadge label="Total"     value={enrollments.length} color="indigo" />
-        <StatBadge label="Active"    value={activeCount}        color="green"  />
-        <StatBadge label="Pending"   value={pendingCount}       color="yellow" />
-        <StatBadge label="Completed" value={completedCount}     color="blue"   />
-      </div>
-
-      {/* Add / Edit Form */}
-      <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-xl mb-8 border border-slate-200 dark:border-slate-700 shadow-sm">
-        <h2 className="text-sm font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-4">
-          {isEditing ? "✏️  Edit Enrollment" : "➕  New Enrollment"}
-        </h2>
-
-        <div className="flex flex-col sm:flex-row items-start gap-4">
-          {/* Student dropdown — dynamically from context */}
-          <div className="flex flex-col flex-1 w-full">
-            <select
-              value={studentName}
-              onChange={(e) => { setStudentName(e.target.value); setErrors(prev => ({ ...prev, studentName: undefined })); }}
-              className={`w-full bg-slate-50 dark:bg-slate-900 border ${
-                errors.studentName ? "border-red-500/50 focus:border-red-500 focus:ring-red-500" : "border-slate-300 dark:border-slate-700 focus:border-indigo-500 focus:ring-indigo-500"
-              } text-slate-900 dark:text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 transition-colors`}
-            >
-              <option value="" disabled>Select Student</option>
-              {students.map((s) => (
-                <option key={s.id} value={s.name}>{s.name}</option>
-              ))}
-            </select>
-            {errors.studentName && <span className="text-red-500 dark:text-red-400 text-xs mt-1.5 ml-1">{errors.studentName}</span>}
-          </div>
-
-          {/* Course dropdown — dynamically from context */}
-          <div className="flex flex-col flex-1 w-full">
-            <select
-              value={courseName}
-              onChange={(e) => { setCourseName(e.target.value); setErrors(prev => ({ ...prev, courseName: undefined })); }}
-              className={`w-full bg-slate-50 dark:bg-slate-900 border ${
-                errors.courseName ? "border-red-500/50 focus:border-red-500 focus:ring-red-500" : "border-slate-300 dark:border-slate-700 focus:border-indigo-500 focus:ring-indigo-500"
-              } text-slate-900 dark:text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 transition-colors`}
-            >
-              <option value="" disabled>Select Course</option>
-              {courses.map((c) => (
-                <option key={c.id} value={c.name}>{c.name}</option>
-              ))}
-            </select>
-            {errors.courseName && <span className="text-red-500 dark:text-red-400 text-xs mt-1.5 ml-1">{errors.courseName}</span>}
-          </div>
-
-          {/* Status dropdown */}
-          <div className="flex flex-col flex-1 w-full">
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value as Status)}
-              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
-            >
-              {STATUS_OPTIONS.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </div>
-
-          <button
-            onClick={isEditing ? handleSaveEdit : handleAdd}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl text-sm font-medium shadow-sm transition-colors whitespace-nowrap mt-1 sm:mt-0"
-          >
-            {isEditing ? "Save Changes" : "+ Enroll"}
-          </button>
-
-          {isEditing && (
-            <button
-              onClick={resetForm}
-              className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-6 py-3 rounded-xl text-sm font-medium transition-colors whitespace-nowrap mt-1 sm:mt-0"
-            >
-              Cancel
-            </button>
-          )}
+      <div className="mb-2 flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <h1 className="text-3xl md:text-4xl font-extrabold text-foreground tracking-tight">Enrollments</h1>
+          <p className="text-slate-500 mt-2 text-sm font-medium">Manage and track student course registrations.</p>
         </div>
       </div>
 
-      {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <input
-            type="text"
-            placeholder="🔍  Search enrollments..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full sm:w-80 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors shadow-sm"
-          />
-          <span className="text-slate-500 dark:text-slate-400 text-sm whitespace-nowrap hidden sm:inline-block">
-            {filtered.length} / {enrollments.length}
-          </span>
-        </div>
-        
-        <div className="flex items-center gap-3 text-sm">
-          <span className="text-slate-500 dark:text-slate-400 font-medium">Sort by:</span>
-          <select
-            value={sortField}
-            onChange={(e) => setSortField(e.target.value as SortField)}
-            className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg px-3 py-2 outline-none focus:border-indigo-500 shadow-sm"
-          >
-            <option value="enrolledDate">Date</option>
-            <option value="studentName">Student</option>
-            <option value="courseName">Course</option>
-            <option value="status">Status</option>
-          </select>
-          <button
-            onClick={() => setSortOrder(prev => prev === "asc" ? "desc" : "asc")}
-            className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
-            title="Toggle Sort Order"
-          >
-            {sortOrder === "asc" ? "⬇️" : "⬆️"}
-          </button>
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard title="Total Enrollments" value={enrollments.length} icon={<Users size={24} />} />
+        <StatCard title="Active" value={activeCount} icon={<BookOpen size={24} />} />
+        <StatCard title="Pending" value={pendingCount} icon={<Clock size={24} />} />
+        <StatCard title="Completed" value={completedCount} icon={<CheckCircle size={24} />} />
       </div>
 
-      {/* Enrollment List */}
-      {sortedFiltered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 bg-white dark:bg-slate-800/50 border border-dashed border-slate-300 dark:border-slate-700 rounded-2xl">
-          <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
-            <span className="text-4xl">📋</span>
-          </div>
-          <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">No enrollments found</h3>
-          <p className="text-slate-500 dark:text-slate-400 text-sm">
-            {search
-              ? `Your search for "${search}" did not match any enrollments.`
-              : "Get started by enrolling a student above!"}
-          </p>
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div className="xl:col-span-1 space-y-6">
+          <DashboardCard>
+            <h2 className="text-sm font-bold text-primary uppercase tracking-widest mb-5">
+              {isEditing ? "✏️ Edit Enrollment" : "➕ New Enrollment"}
+            </h2>
+            <div className="space-y-4">
+              <div className="relative">
+                <label className="block text-sm font-bold text-foreground mb-1.5">Student</label>
+                <select
+                  value={studentName}
+                  onChange={(e) => { setStudentName(e.target.value); setErrors(prev => ({ ...prev, studentName: undefined })); }}
+                  className={`w-full bg-surface-muted border ${errors.studentName ? "border-danger" : "border-surface-border"} rounded-xl px-4 py-3 pr-10 text-sm focus:border-primary focus:ring-4 focus:ring-primary/20 outline-none transition-all font-medium text-foreground appearance-none cursor-pointer`}
+                >
+                  <option value="" disabled className="text-slate-400">Select Student</option>
+                  {students.map((s) => <option key={s.id} value={s.name} className="text-foreground bg-surface">{s.name}</option>)}
+                </select>
+                <div className="absolute top-[38px] right-3 flex items-center pointer-events-none text-slate-400">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                </div>
+                {errors.studentName && <p className="text-danger text-xs mt-1 font-semibold">{errors.studentName}</p>}
+              </div>
+
+              <div className="relative">
+                <label className="block text-sm font-bold text-foreground mb-1.5">Course</label>
+                <select
+                  value={courseName}
+                  onChange={(e) => { setCourseName(e.target.value); setErrors(prev => ({ ...prev, courseName: undefined })); }}
+                  className={`w-full bg-surface-muted border ${errors.courseName ? "border-danger" : "border-surface-border"} rounded-xl px-4 py-3 pr-10 text-sm focus:border-primary focus:ring-4 focus:ring-primary/20 outline-none transition-all font-medium text-foreground appearance-none cursor-pointer`}
+                >
+                  <option value="" disabled className="text-slate-400">Select Course</option>
+                  {courses.map((c) => <option key={c.id} value={c.name} className="text-foreground bg-surface">{c.name}</option>)}
+                </select>
+                <div className="absolute top-[38px] right-3 flex items-center pointer-events-none text-slate-400">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                </div>
+                {errors.courseName && <p className="text-danger text-xs mt-1 font-semibold">{errors.courseName}</p>}
+              </div>
+
+              <div className="relative">
+                <label className="block text-sm font-bold text-foreground mb-1.5">Status</label>
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as Status)}
+                  className="w-full bg-surface-muted border border-surface-border rounded-xl px-4 py-3 pr-10 text-sm focus:border-primary focus:ring-4 focus:ring-primary/20 outline-none transition-all font-medium text-foreground appearance-none cursor-pointer"
+                >
+                  {STATUS_OPTIONS.map((s) => <option key={s} value={s} className="text-foreground bg-surface">{s}</option>)}
+                </select>
+                <div className="absolute top-[38px] right-3 flex items-center pointer-events-none text-slate-400">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                </div>
+              </div>
+
+              <div className="pt-4">
+                <button
+                  onClick={isEditing ? handleSaveEdit : handleAdd}
+                  className="w-full bg-primary hover:bg-primary-hover text-white px-6 py-3.5 rounded-xl text-sm font-bold shadow-md transition-all active:scale-95"
+                >
+                  {isEditing ? "Save Changes" : "Enroll Student"}
+                </button>
+                {isEditing && (
+                  <button
+                    onClick={resetForm}
+                    className="w-full mt-3 bg-surface-muted border border-surface-border text-foreground px-6 py-3.5 rounded-xl text-sm font-bold hover:bg-surface-border transition-all"
+                  >
+                    Cancel Edit
+                  </button>
+                )}
+              </div>
+            </div>
+          </DashboardCard>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {sortedFiltered.map((enrollment) => (
-            <EnrollmentCard
-              key={enrollment.id}
-              studentName={enrollment.studentName}
-              courseName={enrollment.courseName}
-              enrolledDate={enrollment.enrolledDate}
-              status={enrollment.status}
-              onEdit={() => startEdit(enrollment)}
-              onDelete={() => promptDelete(enrollment.id)}
-            />
-          ))}
+
+        <div className="xl:col-span-2 space-y-6">
+          <DashboardCard className="flex flex-col h-full" noPadding>
+            <div className="p-6 border-b border-surface-border flex flex-col sm:flex-row items-center justify-between gap-4 bg-surface">
+              <div className="relative w-full sm:w-72">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                <input
+                  type="text"
+                  placeholder="Search enrollments..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 bg-surface-muted border border-surface-border rounded-lg text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all text-foreground"
+                />
+              </div>
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <Filter size={16} className="text-slate-400" />
+                <select
+                  value={sortField}
+                  onChange={(e) => setSortField(e.target.value as SortField)}
+                  className="bg-transparent text-sm font-medium text-foreground outline-none cursor-pointer"
+                >
+                  <option value="enrolledDate">Sort by Date</option>
+                  <option value="studentName">Sort by Student</option>
+                  <option value="courseName">Sort by Course</option>
+                  <option value="status">Sort by Status</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-x-auto bg-surface rounded-b-[24px]">
+              <table className="w-full text-left border-collapse min-w-[600px]">
+                <thead className="bg-surface-muted/50 text-xs uppercase text-slate-500">
+                  <tr>
+                    <th className="px-6 py-4 font-bold tracking-wider">Student</th>
+                    <th className="px-6 py-4 font-bold tracking-wider">Course</th>
+                    <th className="px-6 py-4 font-bold tracking-wider">Date</th>
+                    <th className="px-6 py-4 font-bold tracking-wider">Status</th>
+                    <th className="px-6 py-4 font-bold tracking-wider text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-surface-border">
+                  {sortedFiltered.map((enrollment, idx) => (
+                    <motion.tr 
+                      key={enrollment.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.05 }}
+                      className="hover:bg-surface-muted transition-colors group"
+                    >
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <UserAvatar name={enrollment.studentName} size="sm" />
+                          <span className="font-bold text-foreground">{enrollment.studentName}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-foreground font-semibold">
+                        {enrollment.courseName}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-500 font-medium">
+                        {enrollment.enrolledDate}
+                      </td>
+                      <td className="px-6 py-4">
+                        <StatusBadge status={enrollment.status} />
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => startEdit(enrollment)} className="p-2 text-slate-400 hover:text-primary bg-surface rounded-lg shadow-sm border border-surface-border transition-all hover:scale-105">
+                            <Edit2 size={14} />
+                          </button>
+                          <button onClick={() => promptDelete(enrollment.id)} className="p-2 text-slate-400 hover:text-danger bg-surface rounded-lg shadow-sm border border-surface-border transition-all hover:scale-105">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </motion.tr>
+                  ))}
+                  {sortedFiltered.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
+                        No enrollments found matching your criteria.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </DashboardCard>
         </div>
-      )}
-    </div>
-  );
-}
-
-// ── StatBadge (co-located helper component) ──────────────────────────────────
-
-type BadgeColor = "indigo" | "green" | "yellow" | "blue";
-
-const BADGE_STYLES: Record<BadgeColor, string> = {
-  indigo: "bg-indigo-500/10 border-indigo-500/20 text-indigo-400",
-  green:  "bg-green-500/10  border-green-500/20  text-green-400",
-  yellow: "bg-yellow-500/10 border-yellow-500/20 text-yellow-400",
-  blue:   "bg-blue-500/10   border-blue-500/20   text-blue-400",
-};
-
-function StatBadge({ label, value, color }: { label: string; value: number; color: BadgeColor }) {
-  return (
-    <div className={`px-4 sm:px-5 py-3 rounded-xl border ${BADGE_STYLES[color]} text-center min-w-[80px] sm:min-w-[100px]`}>
-      <p className="text-xl sm:text-2xl font-bold">{value}</p>
-      <p className="text-xs uppercase tracking-wide mt-0.5 opacity-80">{label}</p>
+      </div>
     </div>
   );
 }

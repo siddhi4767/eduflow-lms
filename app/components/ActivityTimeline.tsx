@@ -15,12 +15,17 @@ type Props = {
   maxItems?: number;
 };
 
-const TYPE_COLORS: Record<Activity["type"], string> = {
-  enrollment: "border-indigo-500 bg-indigo-100 dark:bg-indigo-500/10",
-  course:     "border-emerald-500 bg-emerald-100 dark:bg-emerald-500/10",
-  student:    "border-amber-500 bg-amber-100 dark:bg-amber-500/10",
-  completion: "border-violet-500 bg-violet-100 dark:bg-violet-500/10",
+const TYPE_COLORS: Record<string, string> = {
+  enrollment: "border-indigo-500 bg-indigo-100 dark:bg-indigo-500/10 text-indigo-500",
+  course:     "border-emerald-500 bg-emerald-100 dark:bg-emerald-500/10 text-emerald-500",
+  student:    "border-amber-500 bg-amber-100 dark:bg-amber-500/10 text-amber-500",
+  completion: "border-violet-500 bg-violet-100 dark:bg-violet-500/10 text-violet-500",
+  assignment: "border-rose-500 bg-rose-100 dark:bg-rose-500/10 text-rose-500",
 };
+
+function getColorForType(type: string) {
+  return TYPE_COLORS[type] || "border-slate-500 bg-slate-100 dark:bg-slate-500/10 text-slate-500";
+}
 
 export default function ActivityTimeline({
   activities,
@@ -75,7 +80,7 @@ export default function ActivityTimeline({
           {/* Timeline dot + connector */}
           <div className="relative flex flex-col items-center">
             <div
-              className={`w-9 h-9 rounded-xl border-2 flex items-center justify-center text-sm ${TYPE_COLORS[item.type]}`}
+              className={`w-9 h-9 rounded-xl border-2 flex items-center justify-center text-sm ${getColorForType(item.type)}`}
             >
               {item.icon}
             </div>

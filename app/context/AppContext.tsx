@@ -5,11 +5,12 @@ import {
   useContext,
   useState,
   useEffect,
+  useCallback,
   type ReactNode,
 } from "react";
 
 import type { Student, Course, Enrollment, Activity } from "../data/types";
-import { StudentService, CourseService, EnrollmentService, ActivityService } from "../lib/api";
+import { StudentService, CourseService, EnrollmentService, ActivityService, AssignmentService, QuizService } from "../lib/api";
 import { useToast } from "./ToastContext";
 
 interface AppContextType {
@@ -17,6 +18,8 @@ interface AppContextType {
   courses: Course[];
   enrollments: Enrollment[];
   activities: Activity[];
+  assignments: any[];
+  quizzes: any[];
   hydrated: boolean;
 
   addStudent: (s: Omit<Student, "id">) => Promise<void>;
@@ -32,6 +35,10 @@ interface AppContextType {
   deleteEnrollment: (id: string) => Promise<void>;
 
   addActivity: (type: Activity["type"], message: string, icon: string) => Promise<void>;
+  
+  reloadAssignments: () => Promise<void>;
+  reloadQuizzes: () => Promise<void>;
+  
   resetAll: () => void;
 }
 
@@ -43,21 +50,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [courses, setCourses] = useState<Course[]>([]);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [assignments, setAssignments] = useState<any[]>([]);
+  const [quizzes, setQuizzes] = useState<any[]>([]);
   const { addToast } = useToast();
 
   useEffect(() => {
     async function loadData() {
       try {
-        const [sData, cData, eData, aData] = await Promise.all([
-          StudentService.getStudents(),
-          CourseService.getCourses(),
-          EnrollmentService.getEnrollments(),
-          ActivityService.getActivities()
+        const [sData, cData, eData, aData, asgData, qData] = await Promise.all([
+          StudentService.getStudents().catch(() => []),
+          CourseService.getCourses().catch(() => []),
+          EnrollmentService.getEnrollments().catch(() => []),
+          ActivityService.getActivities().catch(() => []),
+          AssignmentService.getAssignments().catch(() => []),
+          QuizService.getQuizzes().catch(() => [])
         ]);
         setStudents(sData);
         setCourses(cData);
         setEnrollments(eData);
         setActivities(aData);
+        setAssignments(asgData);
+        setQuizzes(qData);
       } catch (err: unknown) {
         if (err instanceof Error) {
           addToast(err.message, "error");
@@ -72,63 +85,56 @@ export function AppProvider({ children }: { children: ReactNode }) {
     loadData();
   }, [addToast]);
 
-  async function reloadActivities() {
-    const aData = await ActivityService.getActivities();
-    setActivities(aData);
-  }
+  const reloadStudents = async () => setStudents(await StudentService.getStudents().catch(() => []));
+  const reloadCourses = async () => setCourses(await CourseService.getCourses().catch(() => []));
+  const reloadEnrollments = async () => setEnrollments(await EnrollmentService.getEnrollments().catch(() => []));
+  const reloadActivities = async () => setActivities(await ActivityService.getActivities().catch(() => []));
+  const reloadAssignments = async () => setAssignments(await AssignmentService.getAssignments().catch(() => []));
+  const reloadQuizzes = async () => setQuizzes(await QuizService.getQuizzes().catch(() => []));
 
   async function addStudent(data: Omit<Student, "id">) {
-    const newStudent = await StudentService.addStudent(data);
-    setStudents((prev) => [...prev, newStudent]);
-    await reloadActivities();
+    await StudentService.addStudent(data);
+    await Promise.all([reloadStudents(), reloadActivities()]);
   }
 
   async function updateStudent(id: string, data: Omit<Student, "id">) {
-    const updated = await StudentService.updateStudent(id, data);
-    setStudents((prev) => prev.map((s) => (s.id === id ? updated : s)));
-    await reloadActivities();
+    await StudentService.updateStudent(id, data);
+    await Promise.all([reloadStudents(), reloadActivities()]);
   }
 
   async function deleteStudent(id: string) {
     await StudentService.deleteStudent(id);
-    setStudents((prev) => prev.filter((s) => s.id !== id));
-    await reloadActivities();
+    await Promise.all([reloadStudents(), reloadActivities(), reloadEnrollments()]);
   }
 
   async function addCourse(data: Omit<Course, "id">) {
-    const newCourse = await CourseService.addCourse(data);
-    setCourses((prev) => [...prev, newCourse]);
-    await reloadActivities();
+    await CourseService.addCourse(data);
+    await Promise.all([reloadCourses(), reloadActivities()]);
   }
 
   async function updateCourse(id: string, data: Omit<Course, "id">) {
-    const updated = await CourseService.updateCourse(id, data);
-    setCourses((prev) => prev.map((c) => (c.id === id ? updated : c)));
-    await reloadActivities();
+    await CourseService.updateCourse(id, data);
+    await Promise.all([reloadCourses(), reloadActivities(), reloadEnrollments(), reloadStudents()]);
   }
 
   async function deleteCourse(id: string) {
     await CourseService.deleteCourse(id);
-    setCourses((prev) => prev.filter((c) => c.id !== id));
-    await reloadActivities();
+    await Promise.all([reloadCourses(), reloadActivities(), reloadEnrollments(), reloadStudents()]);
   }
 
   async function addEnrollment(data: Omit<Enrollment, "id">) {
-    const newE = await EnrollmentService.addEnrollment(data);
-    setEnrollments((prev) => [...prev, newE]);
-    await reloadActivities();
+    await EnrollmentService.addEnrollment(data);
+    await Promise.all([reloadEnrollments(), reloadStudents(), reloadActivities()]);
   }
 
   async function updateEnrollment(id: string, data: Omit<Enrollment, "id">) {
-    const updated = await EnrollmentService.updateEnrollment(id, data);
-    setEnrollments((prev) => prev.map((e) => (e.id === id ? updated : e)));
-    await reloadActivities();
+    await EnrollmentService.updateEnrollment(id, data);
+    await Promise.all([reloadEnrollments(), reloadStudents(), reloadActivities()]);
   }
 
   async function deleteEnrollment(id: string) {
     await EnrollmentService.deleteEnrollment(id);
-    setEnrollments((prev) => prev.filter((e) => e.id !== id));
-    await reloadActivities();
+    await Promise.all([reloadEnrollments(), reloadStudents(), reloadActivities()]);
   }
 
   async function addActivity(type: Activity["type"], message: string, icon: string) {
@@ -145,6 +151,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     courses,
     enrollments,
     activities,
+    assignments,
+    quizzes,
     hydrated,
     addStudent,
     updateStudent,
@@ -156,6 +164,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     updateEnrollment,
     deleteEnrollment,
     addActivity,
+    reloadAssignments,
+    reloadQuizzes,
     resetAll,
   };
 

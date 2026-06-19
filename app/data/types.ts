@@ -24,11 +24,14 @@ export interface Course {
   duration: string;
   fee: string;
   category: string;
+  imageUrl?: string | null;
 }
 
 /** A student ↔ course registration record */
 export interface Enrollment {
   id: string;
+  userId?: string;
+  courseId?: string;
   studentName: string;
   courseName: string;
   enrolledDate: string; // "YYYY-MM-DD"
@@ -38,7 +41,7 @@ export interface Enrollment {
 /** An event in the activity feed */
 export interface Activity {
   id: string;
-  type: "enrollment" | "course" | "student" | "completion";
+  type: string;
   message: string;
   timestamp: string;
   icon: string;

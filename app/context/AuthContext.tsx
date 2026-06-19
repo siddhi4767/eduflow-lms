@@ -1,12 +1,14 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
+import { createContext, useContext, ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { useSession, signIn, signOut } from "next-auth/react";
 
 interface User {
   name: string;
   email: string;
   role: string;
+  image?: string;
 }
 
 interface AuthContextType {
@@ -14,48 +16,42 @@ interface AuthContextType {
   loading: boolean;
   login: (data: Record<string, unknown>) => Promise<void>;
   logout: () => Promise<void>;
+  updateUser: (data: { name?: string; image?: string }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: session, status, update } = useSession();
+  const loading = status === "loading";
   const router = useRouter();
 
-  useEffect(() => {
-    fetch("/api/auth/me")
-      .then((res) => {
-        if (res.ok) return res.json();
-        return { user: null };
-      })
-      .then((data) => {
-        setUser(data.user);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
+  const rawRole = session?.user ? (session.user as any).role || "student" : "student";
+  const userRole = rawRole.charAt(0).toUpperCase() + rawRole.slice(1).toLowerCase();
+
+  const user = session?.user ? {
+    name: session.user.name || "",
+    email: session.user.email || "",
+    role: userRole,
+    image: session.user.image || undefined,
+  } : null;
 
   async function login(data: Record<string, unknown>) {
-    const res = await fetch("/api/auth", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    const result = await res.json();
-    if (!res.ok) throw new Error(result.error);
-    setUser(result.user);
+    // Left for compatibility, but the actual login page uses signIn directly.
+    await signIn("credentials", { ...data, redirect: false });
     router.push("/dashboard");
   }
 
   async function logout() {
-    await fetch("/api/auth", { method: "DELETE" });
-    setUser(null);
-    router.push("/login");
+    await signOut({ callbackUrl: "/login" });
+  }
+
+  async function updateUser(data: { name?: string; image?: string }) {
+    await update(data);
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

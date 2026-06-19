@@ -147,21 +147,24 @@ export default function StudentsPage() {
       />
 
       {/* Page header */}
-      <div className="mb-8">
-        <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white">Students</h1>
-        <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm">
-          {students.length} student{students.length !== 1 ? "s" : ""} enrolled
-        </p>
+      <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <h1 className="text-3xl md:text-4xl font-extrabold text-foreground tracking-tight">Students</h1>
+          <p className="text-slate-500 mt-2 text-sm font-medium">
+            Manage your {students.length} enrolled student{students.length !== 1 ? "s" : ""}
+          </p>
+        </div>
       </div>
 
       {/* Add / Edit Form */}
-      <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-xl mb-8 border border-slate-200 dark:border-slate-700 shadow-sm">
-        <h2 className="text-sm font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-4">
+      <div className="bg-surface p-5 sm:p-8 rounded-[24px] mb-8 border border-surface-border shadow-card">
+        <h2 className="text-sm font-bold text-primary uppercase tracking-widest mb-5">
           {isEditing ? "✏️  Edit Student" : "➕  Add New Student"}
         </h2>
 
-        <div className="flex flex-col sm:flex-row items-start gap-4">
+        <div className="flex flex-col sm:flex-row items-start gap-4 w-full">
           <FormInput
+            className="flex-1"
             type="text"
             placeholder="Full Name"
             value={name}
@@ -172,6 +175,7 @@ export default function StudentsPage() {
             }}
           />
           <FormInput
+            className="flex-1"
             type="email"
             placeholder="Email Address"
             value={email}
@@ -181,25 +185,28 @@ export default function StudentsPage() {
               if (e.key === "Enter") { if (isEditing) handleSaveEdit(); else handleAdd(); }
             }}
           />
-          <div className="flex flex-col w-full flex-1">
+          <div className="flex flex-col flex-1 w-full relative">
             <select
               value={course}
               onChange={(e) => { setCourse(e.target.value); setErrors(prev => ({ ...prev, course: undefined })); }}
-              className={`w-full bg-slate-50 dark:bg-slate-900 border ${
-                errors.course ? "border-red-500/50 focus:border-red-500 focus:ring-red-500" : "border-slate-300 dark:border-slate-700 focus:border-indigo-500 focus:ring-indigo-500"
-              } text-slate-900 dark:text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 transition-colors`}
+              className={`w-full bg-surface-muted border appearance-none ${
+                errors.course ? "border-danger focus:border-danger focus:ring-danger/20" : "border-surface-border focus:border-primary focus:ring-primary/20"
+              } ${course ? 'text-foreground' : 'text-slate-400 dark:text-slate-500'} rounded-xl px-4 py-3 pr-10 text-sm focus:outline-none focus:ring-4 transition-all font-medium cursor-pointer`}
             >
-              <option value="" disabled>Select Course</option>
+              <option value="" disabled className="text-slate-400 dark:text-slate-500">Select Course</option>
               {courses.map((c) => (
-                <option key={c.id} value={c.name}>{c.name}</option>
+                <option key={c.id} value={c.name} className="text-foreground bg-surface">{c.name}</option>
               ))}
             </select>
-            {errors.course && <span className="text-red-500 dark:text-red-400 text-xs mt-1.5 ml-1">{errors.course}</span>}
+            <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            </div>
+            {errors.course && <span className="text-danger text-xs mt-1.5 ml-1">{errors.course}</span>}
           </div>
 
           <button
             onClick={isEditing ? handleSaveEdit : handleAdd}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl text-sm font-medium shadow-sm transition-colors whitespace-nowrap mt-1 sm:mt-0"
+            className="bg-primary hover:bg-primary-hover text-white px-6 py-3 rounded-xl text-sm font-bold shadow-md transition-all active:scale-95 whitespace-nowrap mt-1 sm:mt-0"
           >
             {isEditing ? "Save Changes" : "+ Add Student"}
           </button>
@@ -207,7 +214,7 @@ export default function StudentsPage() {
           {isEditing && (
             <button
               onClick={resetForm}
-              className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-6 py-3 rounded-xl text-sm font-medium transition-colors whitespace-nowrap mt-1 sm:mt-0"
+              className="bg-surface-muted hover:bg-surface-border text-foreground px-6 py-3 rounded-xl text-sm font-bold transition-colors whitespace-nowrap mt-1 sm:mt-0"
             >
               Cancel
             </button>
@@ -223,26 +230,26 @@ export default function StudentsPage() {
             placeholder="🔍  Search students..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full sm:w-72 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors shadow-sm"
+            className="w-full sm:w-72 bg-surface border border-surface-border text-foreground placeholder-slate-400 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20 transition-all shadow-sm font-medium"
           />
-          <span className="text-slate-500 dark:text-slate-400 text-sm whitespace-nowrap hidden sm:inline-block">
+          <span className="text-slate-500 text-sm whitespace-nowrap hidden sm:inline-block font-medium">
             {filtered.length} / {students.length}
           </span>
         </div>
         
         <div className="flex items-center gap-3 text-sm">
-          <span className="text-slate-500 dark:text-slate-400 font-medium">Sort by:</span>
+          <span className="text-slate-500 font-semibold">Sort by:</span>
           <select
             value={sortField}
             onChange={(e) => setSortField(e.target.value as SortField)}
-            className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg px-3 py-2 outline-none focus:border-indigo-500 shadow-sm"
+            className="bg-surface border border-surface-border text-foreground rounded-lg px-3 py-2.5 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 shadow-sm font-medium"
           >
             <option value="name">Name</option>
             <option value="course">Course</option>
           </select>
           <button
             onClick={() => setSortOrder(prev => prev === "asc" ? "desc" : "asc")}
-            className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
+            className="bg-surface border border-surface-border text-foreground p-2.5 rounded-lg hover:bg-surface-muted transition-colors shadow-sm"
             title="Toggle Sort Order"
           >
             {sortOrder === "asc" ? "⬇️" : "⬆️"}
@@ -252,12 +259,12 @@ export default function StudentsPage() {
 
       {/* Student List */}
       {sortedFiltered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 bg-white dark:bg-slate-800/50 border border-dashed border-slate-300 dark:border-slate-700 rounded-2xl">
-          <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
+        <div className="flex flex-col items-center justify-center py-20 bg-surface/50 border border-dashed border-surface-border rounded-[24px]">
+          <div className="w-20 h-20 bg-surface-muted rounded-full flex items-center justify-center mb-4">
             <span className="text-4xl">🎓</span>
           </div>
-          <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">No students found</h3>
-          <p className="text-slate-500 dark:text-slate-400 text-sm">
+          <h3 className="text-lg font-bold text-foreground mb-1">No students found</h3>
+          <p className="text-slate-500 text-sm font-medium">
             {search
               ? `Your search for "${search}" did not match any students.`
               : "Get started by adding your first student above!"}
@@ -268,6 +275,7 @@ export default function StudentsPage() {
           {sortedFiltered.map((student) => (
             <StudentCard
               key={student.id}
+              id={student.id}
               name={student.name}
               email={student.email}
               course={student.course}

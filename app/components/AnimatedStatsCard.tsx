@@ -63,47 +63,53 @@ export default function AnimatedStatsCard({
 
   return (
     <div
-      className={`relative overflow-hidden rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-slate-800/60 backdrop-blur-xl p-6 transition-all duration-700 hover:-translate-y-1 shadow-sm dark:shadow-none hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] dark:hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-indigo-500/10 dark:hover:border-white/20 ${
+      className={`group relative overflow-hidden rounded-2xl border border-slate-200/60 dark:border-white/10 bg-white dark:bg-slate-900/50 backdrop-blur-2xl p-6 transition-all duration-500 hover:-translate-y-1 hover:shadow-xl dark:hover:shadow-2xl shadow-sm dark:shadow-none hover:shadow-indigo-500/10 dark:hover:border-indigo-500/30 ${
         visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
       }`}
       style={{ minWidth: 220 }}
     >
-      {/* Gradient glow behind icon */}
+      {/* Decorative Gradient Background */}
       <div
-        className={`absolute -top-6 -right-6 w-24 h-24 rounded-full bg-gradient-to-br ${gradient} opacity-20 blur-2xl`}
+        className={`absolute -bottom-16 -right-16 w-32 h-32 rounded-full bg-gradient-to-br ${gradient} opacity-[0.15] dark:opacity-20 blur-3xl group-hover:scale-125 transition-transform duration-700`}
       />
 
       <div className="flex items-start justify-between relative z-10">
         <div>
-          <p className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+          <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
             {title}
           </p>
-          <p className="text-3xl font-extrabold text-slate-900 dark:text-white mt-2 tabular-nums">
-            {prefix}
-            {displayed.toLocaleString("en-IN")}
-            {suffix}
-          </p>
-
-          {/* Trend badge */}
+          <div className="flex items-baseline gap-2 mt-2">
+            <p className="text-3xl font-extrabold text-slate-900 dark:text-white tabular-nums tracking-tight">
+              {prefix}
+              {displayed.toLocaleString("en-IN")}
+              {suffix}
+            </p>
+            {trend && (
+              <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md border border-slate-100 dark:border-white/5">
+                <span
+                  className={`text-xs font-bold ${
+                    trend.value >= 0 ? "text-emerald-500" : "text-red-500"
+                  }`}
+                >
+                  {trend.value >= 0 ? "↑" : "↓"} {Math.abs(trend.value)}%
+                </span>
+              </div>
+            )}
+          </div>
           {trend && (
-            <div className="flex items-center gap-1.5 mt-2">
-              <span
-                className={`text-xs font-bold ${
-                  trend.value >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
-                }`}
-              >
-                {trend.value >= 0 ? "↑" : "↓"} {Math.abs(trend.value)}%
-              </span>
-              <span className="text-xs text-slate-500">{trend.label}</span>
-            </div>
+            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5 font-medium">
+              Compared to {trend.label}
+            </p>
           )}
         </div>
 
         {/* Icon */}
         <div
-          className={`w-12 h-12 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center text-xl shadow-lg`}
+          className={`w-12 h-12 rounded-xl bg-gradient-to-br ${gradient} p-[1px] shadow-lg overflow-hidden group-hover:scale-110 transition-transform duration-500`}
         >
-          {icon}
+          <div className="w-full h-full bg-white/10 backdrop-blur-sm rounded-xl flex items-center justify-center text-xl text-white">
+            {icon}
+          </div>
         </div>
       </div>
     </div>

@@ -1,55 +1,83 @@
 import { NextResponse } from "next/server";
-import { getDb, saveDb, generateId } from "../../../lib/db";
+import { prisma } from "../../../lib/prisma";
 import { courseSchema } from "../../../lib/schemas";
+import { auth } from "../../../../auth";
+import { hasRole } from "../../../../lib/rbac";
 
+// PATCH /api/courses/:id — Update a course
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const session = await auth();
+    const role = (session?.user as any)?.role;
+    if (!hasRole(role, ["ADMIN", "INSTRUCTOR"])) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
     const { id } = await params;
     const body = await req.json();
     const validated = courseSchema.partial().parse(body);
 
-    const db = getDb();
-    const index = db.courses.findIndex((c) => c.id === id);
-    if (index === -1) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const updated = await prisma.$transaction(async (tx) => {
+      const course = await tx.course.update({
+        where: { id },
+        data: validated,
+      });
 
-    db.courses[index] = { ...db.courses[index], ...validated };
+      // Log activity
+      await tx.activity.create({
+        data: {
+          type: "course",
+          message: `${course.name} course updated`,
+          icon: "✏️",
+        },
+      });
 
-    db.activities.unshift({
-      id: generateId(),
-      type: "course",
-      message: `${db.courses[index].name} course updated`,
-      timestamp: new Date().toISOString(),
-      icon: "✏️"
+      return course;
     });
 
-    saveDb(db);
-    return NextResponse.json(db.courses[index]);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({
+      id: updated.id, name: updated.name, duration: updated.duration, fee: updated.fee, category: updated.category, imageUrl: updated.imageUrl,
+    });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Failed to update course";
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }
 
+// DELETE /api/courses/:id — Delete a course
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const session = await auth();
+    const role = (session?.user as any)?.role;
+    if (!hasRole(role, ["ADMIN", "INSTRUCTOR"])) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
     const { id } = await params;
-    const db = getDb();
-    
-    const course = db.courses.find((c) => c.id === id);
-    if (!course) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    db.courses = db.courses.filter((c) => c.id !== id);
+    await prisma.$transaction(async (tx) => {
+      // First, delete related enrollments, assignments, quizzes
+      await tx.enrollment.deleteMany({ where: { courseId: id } });
+      await tx.assignment.deleteMany({ where: { courseId: id } });
+      await tx.quiz.deleteMany({ where: { courseId: id } });
 
-    db.activities.unshift({
-      id: generateId(),
-      type: "course",
-      message: `${course.name} course removed`,
-      timestamp: new Date().toISOString(),
-      icon: "🗑️"
+      const course = await tx.course.delete({
+        where: { id },
+      });
+
+      // Log activity
+      await tx.activity.create({
+        data: {
+          type: "course",
+          message: `${course.name} course removed`,
+          icon: "🗑️",
+        },
+      });
     });
 
-    saveDb(db);
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Failed to delete course";
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }

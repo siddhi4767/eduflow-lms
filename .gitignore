@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# lms specific & backups
+.gemini_backup/
+playwright-report/
+test-results/
+*.sqlite
+*.sqlite-journal

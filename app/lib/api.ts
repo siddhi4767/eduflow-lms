@@ -1,18 +1,32 @@
 import { Student, Course, Enrollment, Activity } from "../data/types";
 
-// Helper for fetch with JSON handling and basic error throwing
 async function fetchApi<T>(url: string, options?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = {
+    ...(options?.headers as Record<string, string>),
+  };
+
+  // Only add Content-Type if we aren't explicitly unsetting it (like we do for FormData)
+  if ((options?.headers as any)?.["Content-Type"] !== undefined) {
+     headers["Content-Type"] = "application/json";
+  } else {
+     delete headers["Content-Type"];
+  }
+
   const res = await fetch(url, {
+    cache: "no-store",
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options?.headers,
-    },
+    headers,
   });
   const data = await res.json();
   if (!res.ok) {
     throw new Error(data.error || "An API error occurred");
   }
+  
+  // If the API returns a paginated structure { data: [...], total, page }, return the inner data array to prevent breaking existing components
+  if (data && typeof data === 'object' && Array.isArray(data.data) && 'total' in data && 'page' in data) {
+    return data.data as unknown as T;
+  }
+  
   return data;
 }
 
@@ -40,4 +54,23 @@ export const EnrollmentService = {
 export const ActivityService = {
   getActivities: () => fetchApi<Activity[]>("/api/activities"),
   addActivity: (data: Omit<Activity, "id">) => fetchApi<Activity>("/api/activities", { method: "POST", body: JSON.stringify(data) }),
+};
+
+export const AssignmentService = {
+  getAssignments: () => fetchApi<any[]>("/api/assignments"),
+  addAssignment: (data: any) => fetchApi<any>("/api/assignments", { method: "POST", body: JSON.stringify(data) }),
+  submitAssignment: (formData: FormData) => fetchApi<any>("/api/assignments/submit", { 
+    method: "POST", 
+    body: formData,
+    // Note: don't set Content-Type header when sending FormData, browser sets it with boundary
+    headers: { "Content-Type": undefined } as any
+  }),
+  gradeAssignment: (data: { assignmentId: string, studentId: string, score: string }) => 
+    fetchApi<any>("/api/assignments/submit", { method: "POST", body: JSON.stringify(data) }),
+};
+
+export const QuizService = {
+  getQuizzes: () => fetchApi<any[]>("/api/quizzes"),
+  addQuiz: (data: any) => fetchApi<any>("/api/quizzes", { method: "POST", body: JSON.stringify(data) }),
+  attemptQuiz: (data: { quizId: string, score?: number, status?: string }) => fetchApi<any>("/api/quizzes/attempt", { method: "POST", body: JSON.stringify(data) }),
 };

@@ -66,12 +66,12 @@ export default function EnrollmentCard({
           {studentName.charAt(0).toUpperCase()}
         </div>
 
-        <div>
-          <h2 className="text-base font-bold text-slate-900 dark:text-white">{studentName}</h2>
-          <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">
+        <div className="min-w-0">
+          <h2 className="text-base font-bold text-slate-900 dark:text-white truncate">{studentName}</h2>
+          <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5 truncate">
             📚 {courseName}
           </p>
-          <p className="text-slate-400 dark:text-slate-500 text-xs mt-1">
+          <p className="text-slate-400 dark:text-slate-500 text-xs mt-1 truncate">
             Enrolled: {formattedDate}
           </p>
         </div>

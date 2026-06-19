@@ -1,55 +1,88 @@
 import { NextResponse } from "next/server";
-import { getDb, saveDb, generateId } from "../../../lib/db";
+import { prisma } from "../../../lib/prisma";
 import { studentSchema } from "../../../lib/schemas";
+import { auth } from "../../../../auth";
+import { hasRole, ROUTE_PERMISSIONS } from "../../../../lib/rbac";
 
+// PATCH /api/students/:id — Update a student
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const session = await auth();
+    const role = (session?.user as any)?.role;
+    if (!hasRole(role, ROUTE_PERMISSIONS["/api/students"])) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
     const { id } = await params;
     const body = await req.json();
     const validated = studentSchema.partial().parse(body);
 
-    const db = getDb();
-    const index = db.students.findIndex((s) => s.id === id);
-    if (index === -1) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const { course, ...userData } = validated;
+    
+    const updated = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.update({
+        where: { id },
+        data: userData,
+        include: {
+          enrollments: { include: { course: true } }
+        }
+      });
 
-    db.students[index] = { ...db.students[index], ...validated };
+      // Log activity
+      await tx.activity.create({
+        data: {
+          type: "student",
+          message: `${user.name}'s profile updated`,
+          icon: "✏️",
+        },
+      });
 
-    db.activities.unshift({
-      id: generateId(),
-      type: "student",
-      message: `${db.students[index].name}'s profile updated`,
-      timestamp: new Date().toISOString(),
-      icon: "✏️"
+      return user;
     });
 
-    saveDb(db);
-    return NextResponse.json(db.students[index]);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({
+      id: updated.id, name: updated.name, email: updated.email, course: updated.enrollments?.[0]?.course?.name || "No Course",
+    });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Failed to update student";
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }
 
+// DELETE /api/students/:id — Delete a student
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const session = await auth();
+    const role = (session?.user as any)?.role;
+    if (!hasRole(role, ROUTE_PERMISSIONS["/api/students"])) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
     const { id } = await params;
-    const db = getDb();
-    
-    const student = db.students.find((s) => s.id === id);
-    if (!student) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    db.students = db.students.filter((s) => s.id !== id);
+    await prisma.$transaction(async (tx) => {
+      // First delete associated enrollments, quiz attempts, assignment submissions
+      await tx.enrollment.deleteMany({ where: { userId: id } });
+      await tx.quizAttempt.deleteMany({ where: { userId: id } });
+      await tx.assignmentSubmission.deleteMany({ where: { userId: id } });
 
-    db.activities.unshift({
-      id: generateId(),
-      type: "student",
-      message: `${student.name} was removed`,
-      timestamp: new Date().toISOString(),
-      icon: "🗑️"
+      const student = await tx.user.delete({
+        where: { id },
+      });
+
+      // Log activity
+      await tx.activity.create({
+        data: {
+          type: "student",
+          message: `${student.name} was removed`,
+          icon: "🗑️",
+        },
+      });
     });
 
-    saveDb(db);
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Failed to delete student";
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }

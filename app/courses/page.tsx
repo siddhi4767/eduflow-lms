@@ -10,8 +10,11 @@
 //   • Toast notifications on every add/edit/delete
 // =============================================================================
 
-import { useState } from "react";
+import { useState, useRef } from "react";
+import Image from "next/image";
+import { ImagePlus, Loader2, X } from "lucide-react";
 import { useApp } from "../context/AppContext";
+import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import CourseCard from "../components/CourseCard";
 import FormInput from "../components/FormInput";
@@ -21,14 +24,20 @@ import { courseSchema } from "../lib/schemas";
 const CATEGORIES = ["Frontend", "Backend", "Fullstack", "Language", "DevOps", "Other"];
 
 export default function CoursesPage() {
-  const { courses, addCourse, updateCourse, deleteCourse } = useApp();
+  const { courses, enrollments, addCourse, updateCourse, deleteCourse } = useApp();
+  const { user } = useAuth();
   const { addToast } = useToast();
+  const isStudent = user?.role?.toUpperCase() === "STUDENT";
 
   // Local form state
   const [name, setName]         = useState("");
   const [duration, setDuration] = useState("");
   const [fee, setFee]           = useState("");
   const [category, setCategory] = useState("Frontend");
+  const [imageUrl, setImageUrl] = useState("");
+
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Edit & Delete state
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -68,6 +77,7 @@ export default function CoursesPage() {
         duration: duration.trim(),
         fee: fee.trim(),
         category,
+        imageUrl: imageUrl || undefined,
       });
       addToast("Course added successfully", "success");
       resetForm();
@@ -77,13 +87,16 @@ export default function CoursesPage() {
   }
 
   // ── Start editing ──────────────────────────────────────────────────────
-  function startEdit(course: { id: string; name: string; duration: string; fee: string; category: string }) {
+  function startEdit(course: { id: string; name: string; duration: string; fee: string; category: string; imageUrl?: string | null }) {
     setEditingId(course.id);
     setName(course.name);
     setDuration(course.duration);
     setFee(course.fee);
     setCategory(course.category);
+    setImageUrl(course.imageUrl || "");
     setErrors({});
+    const scrollContainer = document.querySelector('main');
+    if (scrollContainer) scrollContainer.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   // ── Save edit ──────────────────────────────────────────────────────────
@@ -95,6 +108,7 @@ export default function CoursesPage() {
         duration: duration.trim(),
         fee: fee.trim(),
         category,
+        imageUrl: imageUrl || null,
       });
       addToast("Course updated successfully", "success");
       resetForm();
@@ -127,8 +141,49 @@ export default function CoursesPage() {
     setDuration("");
     setFee("");
     setCategory("Frontend");
+    setImageUrl("");
     setEditingId(null);
     setErrors({});
+  }
+
+  async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      addToast("Image size must be less than 5MB", "error");
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      addToast("Please upload an image file", "error");
+      return;
+    }
+
+    setIsUploading(true);
+    addToast("Uploading thumbnail...", "info");
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch("/api/courses/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setImageUrl(data.imageUrl);
+        addToast("Thumbnail uploaded successfully", "success");
+      } else {
+        const errData = await res.json();
+        addToast(errData.error || "Failed to upload image", "error");
+      }
+    } catch (err) {
+      addToast("Error uploading thumbnail", "error");
+    } finally {
+      setIsUploading(false);
+    }
   }
 
   // ── Filtered list ──────────────────────────────────────────────────────
@@ -165,21 +220,69 @@ export default function CoursesPage() {
         confirmText="Delete"
       />
       {/* Page header */}
-      <div className="mb-8">
-        <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white">Courses</h1>
-        <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm">
-          {courses.length} course{courses.length !== 1 ? "s" : ""} total
-        </p>
+      <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <h1 className="text-3xl md:text-4xl font-extrabold text-foreground tracking-tight">Courses</h1>
+          <p className="text-slate-500 mt-2 text-sm font-medium">
+            Manage your {courses.length} educational programs
+          </p>
+        </div>
       </div>
 
       {/* Add / Edit Form */}
-      <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-xl mb-8 border border-slate-200 dark:border-slate-700 shadow-sm">
-        <h2 className="text-sm font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-4">
+      {!isStudent && (
+        <div className="bg-surface p-5 sm:p-8 rounded-[24px] mb-8 border border-surface-border shadow-card">
+        <h2 className="text-sm font-bold text-primary uppercase tracking-widest mb-5">
           {isEditing ? "✏️  Edit Course" : "➕  Add New Course"}
         </h2>
 
-        <div className="flex flex-col sm:flex-row items-start gap-4">
+        {/* Thumbnail Upload Area */}
+        <div className="mb-6 flex items-start gap-4">
+          <div 
+            className={`relative w-32 h-20 sm:w-40 sm:h-24 rounded-xl border-2 border-dashed overflow-hidden flex flex-col items-center justify-center cursor-pointer transition-colors group ${
+              imageUrl ? 'border-primary' : 'border-surface-border hover:border-primary hover:bg-primary/5'
+            }`}
+            onClick={() => !isUploading && fileInputRef.current?.click()}
+          >
+            {imageUrl ? (
+              <>
+                <Image src={imageUrl} alt="Thumbnail preview" fill className="object-cover opacity-80 group-hover:opacity-50 transition-opacity" />
+                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10 bg-black/40">
+                  <span className="text-white text-xs font-bold bg-black/60 px-2 py-1 rounded">Change</span>
+                </div>
+              </>
+            ) : isUploading ? (
+              <Loader2 className="w-6 h-6 text-primary animate-spin" />
+            ) : (
+              <>
+                <ImagePlus className="w-6 h-6 text-slate-400 group-hover:text-primary mb-1 transition-colors" />
+                <span className="text-xs font-bold text-slate-500 group-hover:text-primary transition-colors">Upload Cover</span>
+              </>
+            )}
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleImageChange} 
+              accept="image/*" 
+              className="hidden" 
+              disabled={isUploading} 
+            />
+          </div>
+          
+          {imageUrl && (
+            <button 
+              onClick={() => setImageUrl("")}
+              className="p-1.5 text-slate-400 hover:text-danger hover:bg-danger/10 rounded-lg transition-colors mt-1"
+              title="Remove Thumbnail"
+            >
+              <X size={18} />
+            </button>
+          )}
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-start gap-4 w-full">
           <FormInput
+            className="flex-1"
             type="text"
             placeholder="Course Name"
             value={name}
@@ -188,6 +291,7 @@ export default function CoursesPage() {
             onKeyDown={(e) => { if (e.key === "Enter") { if (isEditing) handleSaveEdit(); else handleAdd(); } }}
           />
           <FormInput
+            className="flex-1"
             type="text"
             placeholder="Duration (e.g. 8 Weeks)"
             value={duration}
@@ -196,6 +300,7 @@ export default function CoursesPage() {
             onKeyDown={(e) => { if (e.key === "Enter") { if (isEditing) handleSaveEdit(); else handleAdd(); } }}
           />
           <FormInput
+            className="flex-1"
             type="text"
             placeholder="Fee (₹)"
             value={fee}
@@ -203,23 +308,24 @@ export default function CoursesPage() {
             onChange={(e) => { setFee(e.target.value); setErrors(prev => ({ ...prev, fee: undefined })); }}
             onKeyDown={(e) => { if (e.key === "Enter") { if (isEditing) handleSaveEdit(); else handleAdd(); } }}
           />
-          <div className="flex flex-col w-full flex-1">
+          <div className="flex flex-col flex-1 w-full relative">
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white
-                         rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500
-                         focus:ring-1 focus:ring-indigo-500 transition-colors"
+              className="w-full bg-surface-muted border border-surface-border text-foreground rounded-xl px-4 py-3 pr-10 appearance-none text-sm focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20 transition-all font-medium cursor-pointer"
             >
               {CATEGORIES.map((cat) => (
-                <option key={cat} value={cat}>{cat}</option>
+                <option key={cat} value={cat} className="text-foreground bg-surface">{cat}</option>
               ))}
             </select>
+            <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            </div>
           </div>
 
           <button
             onClick={isEditing ? handleSaveEdit : handleAdd}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl text-sm font-medium shadow-sm transition-colors whitespace-nowrap mt-1 sm:mt-0"
+            className="bg-primary hover:bg-primary-hover text-white px-6 py-3 rounded-xl text-sm font-bold shadow-md transition-all active:scale-95 whitespace-nowrap mt-1 sm:mt-0"
           >
             {isEditing ? "Save Changes" : "+ Add Course"}
           </button>
@@ -227,13 +333,14 @@ export default function CoursesPage() {
           {isEditing && (
             <button
               onClick={resetForm}
-              className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-6 py-3 rounded-xl text-sm font-medium transition-colors whitespace-nowrap mt-1 sm:mt-0"
+              className="bg-surface-muted hover:bg-surface-border text-foreground px-6 py-3 rounded-xl text-sm font-bold transition-colors whitespace-nowrap mt-1 sm:mt-0"
             >
               Cancel
             </button>
           )}
         </div>
       </div>
+      )}
 
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
@@ -243,19 +350,19 @@ export default function CoursesPage() {
             placeholder="🔍  Search courses..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full sm:w-72 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors shadow-sm"
+            className="w-full sm:w-72 bg-surface border border-surface-border text-foreground placeholder-slate-400 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20 transition-all shadow-sm font-medium"
           />
-          <span className="text-slate-500 dark:text-slate-400 text-sm whitespace-nowrap hidden sm:inline-block">
+          <span className="text-slate-500 text-sm whitespace-nowrap hidden sm:inline-block font-medium">
             {filtered.length} / {courses.length}
           </span>
         </div>
         
         <div className="flex items-center gap-3 text-sm">
-          <span className="text-slate-500 dark:text-slate-400 font-medium">Sort by:</span>
+          <span className="text-slate-500 font-semibold">Sort by:</span>
           <select
             value={sortField}
             onChange={(e) => setSortField(e.target.value as SortField)}
-            className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg px-3 py-2 outline-none focus:border-indigo-500 shadow-sm"
+            className="bg-surface border border-surface-border text-foreground rounded-lg px-3 py-2.5 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 shadow-sm font-medium"
           >
             <option value="name">Name</option>
             <option value="category">Category</option>
@@ -263,7 +370,7 @@ export default function CoursesPage() {
           </select>
           <button
             onClick={() => setSortOrder(prev => prev === "asc" ? "desc" : "asc")}
-            className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
+            className="bg-surface border border-surface-border text-foreground p-2.5 rounded-lg hover:bg-surface-muted transition-colors shadow-sm"
             title="Toggle Sort Order"
           >
             {sortOrder === "asc" ? "⬇️" : "⬆️"}
@@ -273,12 +380,12 @@ export default function CoursesPage() {
 
       {/* Course List */}
       {sortedFiltered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 bg-white dark:bg-slate-800/50 border border-dashed border-slate-300 dark:border-slate-700 rounded-2xl">
-          <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
+        <div className="flex flex-col items-center justify-center py-20 bg-surface/50 border border-dashed border-surface-border rounded-[24px]">
+          <div className="w-20 h-20 bg-surface-muted rounded-full flex items-center justify-center mb-4">
             <span className="text-4xl">📚</span>
           </div>
-          <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">No courses found</h3>
-          <p className="text-slate-500 dark:text-slate-400 text-sm">
+          <h3 className="text-lg font-bold text-foreground mb-1">No courses found</h3>
+          <p className="text-slate-500 text-sm font-medium">
             {search
               ? `Your search for "${search}" did not match any courses.`
               : "Get started by adding your first course above!"}
@@ -289,11 +396,15 @@ export default function CoursesPage() {
           {sortedFiltered.map((course) => (
             <CourseCard
               key={course.id}
+              id={course.id}
               name={course.name}
               duration={course.duration}
               fee={course.fee}
               category={course.category}
-              onEdit={() => startEdit(course)}
+              imageUrl={course.imageUrl}
+              enrollmentCount={enrollments ? enrollments.filter(e => e.courseId === course.id).length : 0}
+              canEdit={!isStudent}
+              onEdit={() => startEdit(course as any)}
               onDelete={() => promptDelete(course.id)}
             />
           ))}

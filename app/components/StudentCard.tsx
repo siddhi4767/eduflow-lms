@@ -1,4 +1,13 @@
+"use client";
+
+import { UserAvatar } from "./ui/UserAvatar";
+import { StatusBadge } from "./ui/StatusBadge";
+import { Edit2, Trash2, Mail, BookOpen, Clock } from "lucide-react";
+import { motion } from "framer-motion";
+import { useApp } from "../context/AppContext";
+
 type Props = {
+  id: string;
   name: string;
   email: string;
   course: string;
@@ -6,38 +15,91 @@ type Props = {
   onDelete: () => void;
 };
 
-export default function StudentCard({ name, email, course, onEdit, onDelete }: Props) {
+export default function StudentCard({ id, name, email, course, onEdit, onDelete }: Props) {
+  const { assignments, quizzes, enrollments } = useApp();
+
+  // Find enrollment date
+  const studentEnrollment = enrollments.find(e => e.userId === id);
+  const date = studentEnrollment ? new Date(studentEnrollment.enrolledDate).toLocaleDateString() : "Pending";
+
+  // Calculate progress
+  const studentAssignments = assignments.filter(a => a.studentId === id);
+  const studentQuizzes = quizzes.filter(q => q.studentId === id);
+  
+  const totalTasks = studentAssignments.length + studentQuizzes.length;
+  const completedTasks = 
+    studentAssignments.filter(a => a.status === "Graded" || a.status === "Submitted").length +
+    studentQuizzes.filter(q => q.status === "Completed").length;
+
+  const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+  const status = progress === 100 ? "Completed" : progress > 0 ? "Active" : "Pending";
+
   return (
-    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-5 rounded-xl mb-4 flex items-center justify-between gap-4 hover:shadow-md transition-all group">
-      {/* Avatar + Info */}
-      <div className="flex items-center gap-4">
-        <div className="w-12 h-12 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 text-lg font-bold flex-shrink-0 group-hover:scale-105 transition-transform">
-          {name.charAt(0).toUpperCase()}
+    <motion.div 
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="bg-surface border border-surface-border p-5 sm:p-6 rounded-[24px] flex flex-col shadow-card hover:shadow-card-dark hover:-translate-y-1 transition-all duration-300 group"
+    >
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-center gap-4">
+          <UserAvatar name={name} size="lg" />
+          <div className="min-w-0">
+            <h2 className="text-lg font-bold text-foreground line-clamp-1 group-hover:text-primary transition-colors">{name}</h2>
+            <div className="flex items-center gap-1.5 text-slate-500 font-medium text-sm mt-0.5">
+              <Mail size={12} />
+              <span className="truncate max-w-[150px]">{email}</span>
+            </div>
+          </div>
+        </div>
+        <StatusBadge status={status} />
+      </div>
+
+      <div className="bg-surface-muted rounded-[16px] p-4 flex-1 mb-5 border border-surface-border/50">
+        <div className="flex items-center gap-2 text-sm font-bold text-foreground mb-2">
+          <BookOpen size={16} className="text-primary" />
+          <span className="truncate">{course}</span>
+        </div>
+        <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 mb-5">
+          <Clock size={14} />
+          <span>Enrolled {date}</span>
         </div>
 
-        <div>
-          <h2 className="text-lg font-bold text-slate-900 dark:text-white">{name}</h2>
-          <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">
-            {email} &nbsp;·&nbsp; <span className="text-indigo-600 dark:text-indigo-400 font-medium">{course}</span>
-          </p>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-slate-500 font-bold">Course Progress</span>
+            <span className="text-foreground font-extrabold">{progress}%</span>
+          </div>
+          <div className="h-2 w-full bg-surface-border rounded-full overflow-hidden">
+            <motion.div 
+              initial={{ width: 0 }}
+              animate={{ width: `${progress}%` }}
+              transition={{ duration: 1, delay: 0.2 }}
+              className="h-full bg-primary rounded-full"
+            />
+          </div>
         </div>
       </div>
 
-      {/* Actions */}
-      <div className="flex gap-2 flex-shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+      <div className="flex items-center gap-2 mt-auto">
+        <a
+          href={`/students/${id}`}
+          className="flex-[2] flex items-center justify-center gap-2 bg-primary/10 hover:bg-primary/20 text-primary py-2.5 rounded-xl text-sm font-bold transition-colors"
+        >
+          View Profile
+        </a>
         <button
           onClick={onEdit}
-          className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors"
+          className="flex-1 flex items-center justify-center gap-2 bg-surface-muted hover:bg-surface-border text-foreground py-2.5 rounded-xl text-sm font-bold transition-colors"
         >
-          Edit
+          <Edit2 size={16} />
         </button>
         <button
           onClick={onDelete}
-          className="bg-red-50 hover:bg-red-100 dark:bg-red-500/10 dark:hover:bg-red-500/20 text-red-600 dark:text-red-400 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors"
+          className="flex-1 flex items-center justify-center gap-2 bg-danger-light/30 hover:bg-danger-light/50 text-danger py-2.5 rounded-xl text-sm font-bold transition-colors"
         >
-          Delete
+          <Trash2 size={16} />
         </button>
       </div>
-    </div>
+    </motion.div>
   );
 }

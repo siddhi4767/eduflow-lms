@@ -1,204 +1,295 @@
 "use client";
 
-// =============================================================================
-// dashboard/page.tsx  — EduFlow LMS  |  Dynamic Dashboard
-//
-// CHANGES:
-//   • All data read from AppContext via useApp() (not static imports)
-//   • Total Revenue computed from enrollments × course fees
-//   • All charts and stats update in real-time as data changes
-// =============================================================================
-
 import { useApp } from "../context/AppContext";
 import { useAuth } from "../context/AuthContext";
-import AnimatedStatsCard from "../components/AnimatedStatsCard";
-import DonutChart from "../components/DonutChart";
-import ActivityTimeline from "../components/ActivityTimeline";
+import { useToast } from "../context/ToastContext";
+import { useRouter } from "next/navigation";
+import { StatCard } from "../components/ui/StatCard";
+import { DashboardCard } from "../components/ui/DashboardCard";
+import { RevenueChart } from "../components/dashboard/RevenueChart";
+import { EnrollmentDistribution } from "../components/dashboard/EnrollmentDistribution";
+import { CoursePopularityChart } from "../components/dashboard/CoursePopularityChart";
+import { MonthlyActivityChart } from "../components/dashboard/MonthlyActivityChart";
 import QuickActions from "../components/QuickActions";
-import CoursePopularityBar from "../components/CoursePopularityBar";
-import RevenueTrendChart from "../components/RevenueTrendChart";
-import { useEffect, useState } from "react";
+import PopularCoursesWidget from "../components/PopularCoursesWidget";
+import UpcomingTasks from "../components/UpcomingTasks";
+import ActivityTimeline from "../components/ActivityTimeline";
+import { motion } from "framer-motion";
+import { Users, BookOpen, ClipboardList, IndianRupee, Award } from "lucide-react";
 
 export default function Dashboard() {
   const { students, courses, enrollments, activities, hydrated } = useApp();
   const { user } = useAuth();
-  const [sevenDaysAgo, setSevenDaysAgo] = useState(0);
-
-  useEffect(() => {
-    setSevenDaysAgo(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  }, []);
+  const { addToast } = useToast();
+  const router = useRouter();
 
   if (!hydrated) {
     return (
-      <div className="p-4 sm:p-8 flex-1 max-w-[1400px] animate-pulse">
-        <div className="mb-8">
-          <div className="h-10 bg-slate-200 dark:bg-slate-800 rounded-lg w-48 mb-3"></div>
-          <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-72"></div>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 mb-8">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="h-32 bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-white/[0.06]"></div>
+      <div className="p-6 lg:p-10 max-w-7xl mx-auto space-y-6 animate-pulse">
+        <div className="h-48 bg-surface-muted rounded-3xl" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-32 bg-surface-muted rounded-3xl" />
           ))}
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="h-80 bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-white/[0.06]"></div>
-          <div className="h-80 lg:col-span-2 bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-white/[0.06]"></div>
         </div>
       </div>
     );
   }
 
-  // ── Derived stats ──────────────────────────────────────────────────────
+  const isStudent = user?.role === "STUDENT";
+  const isTutor = user?.role?.toUpperCase() === "TUTOR";
+  const firstName = user?.name?.split(" ")[0] || "User";
+
+  // Overall Stats
   const totalRevenue = enrollments.reduce((sum, e) => {
     const course = courses.find((c) => c.name === e.courseName);
     return sum + (course ? parseInt(course.fee, 10) : 0);
   }, 0);
 
-  const statusCounts = {
-    Active:    enrollments.filter((e) => e.status === "Active").length,
-    Pending:   enrollments.filter((e) => e.status === "Pending").length,
-    Completed: enrollments.filter((e) => e.status === "Completed").length,
+  const completedCount = enrollments.filter(e => e.status === "Completed").length;
+  const completionRate = enrollments.length > 0 ? Math.round((completedCount / enrollments.length) * 100) : 0;
+
+  // Compute Revenue Data (Monthly)
+  const revenueByMonth = enrollments.reduce((acc: Record<string, number>, e) => {
+    const course = courses.find(c => c.name === e.courseName);
+    const date = new Date(e.enrolledDate);
+    const month = date.toLocaleString("default", { month: "short" });
+    acc[month] = (acc[month] || 0) + (course ? parseInt(course.fee, 10) : 0);
+    return acc;
+  }, {});
+  const revenueData = Object.keys(revenueByMonth).map(month => ({ name: month, revenue: revenueByMonth[month] })).reverse();
+  if (revenueData.length === 0) revenueData.push({ name: "No Data", revenue: 0 });
+
+  // Compute Enrollment Distribution
+  const distByCategory = enrollments.reduce((acc: Record<string, number>, e) => {
+    const course = courses.find(c => c.name === e.courseName);
+    const cat = course?.category || "Other";
+    acc[cat] = (acc[cat] || 0) + 1;
+    return acc;
+  }, {});
+  const distributionData = Object.keys(distByCategory).map(cat => ({ name: cat, value: distByCategory[cat] }));
+
+  // Compute Course Popularity (Top 5)
+  const popularityCount = enrollments.reduce((acc: Record<string, number>, e) => {
+    acc[e.courseName] = (acc[e.courseName] || 0) + 1;
+    return acc;
+  }, {});
+  const popularityData = Object.keys(popularityCount)
+    .map(name => ({ name, enrollments: popularityCount[name] }))
+    .sort((a, b) => b.enrollments - a.enrollments)
+    .slice(0, 5);
+    
+  // Compute Monthly Activity
+  const activityByMonth = activities.reduce((acc: Record<string, number>, a) => {
+    const date = new Date(a.timestamp);
+    const month = date.toLocaleString("default", { month: "short" });
+    acc[month] = (acc[month] || 0) + 1;
+    return acc;
+  }, {});
+  const activityData = Object.keys(activityByMonth).map(month => ({ name: month, activities: activityByMonth[month] })).reverse();
+  if (activityData.length === 0) activityData.push({ name: "No Data", activities: 0 });
+
+  // Define animations
+  const container = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: { staggerChildren: 0.1 }
+    }
   };
 
-  const donutSegments = [
-    { label: "Active",    value: statusCounts.Active,    color: "#22c55e" },
-    { label: "Pending",   value: statusCounts.Pending,   color: "#eab308" },
-    { label: "Completed", value: statusCounts.Completed, color: "#6366f1" },
-  ];
-
-  const newStudentsCount = activities.filter(
-    (a) => a.type === "student" && new Date(a.timestamp).getTime() > sevenDaysAgo
-  ).length;
-
-  const newEnrollmentsCount = activities.filter(
-    (a) => a.type === "enrollment" && new Date(a.timestamp).getTime() > sevenDaysAgo
-  ).length;
+  const item = {
+    hidden: { opacity: 0, y: 20 },
+    show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" as const } }
+  };
 
   return (
-    <div className="p-4 sm:p-8 flex-1 max-w-[1400px]">
-      {/* Page Header */}
-      <div className="mb-8 flex items-center justify-between">
+    <motion.div 
+      initial="hidden"
+      animate="show"
+      variants={container}
+      className="p-6 lg:p-10 max-w-7xl mx-auto space-y-8"
+    >
+      {/* ── HERO SECTION ────────────────────────────────────────────── */}
+      <motion.div variants={item} className="bg-surface border border-surface-border rounded-2xl shadow-sm p-8 md:p-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
         <div>
-          <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-500 dark:from-white dark:to-slate-400 bg-clip-text text-transparent">
-            Welcome back, {user?.name?.split(' ')[0] || "Admin"}! 👋
+          <h1 className="text-3xl font-extrabold text-foreground tracking-tight mb-2">
+            Welcome back, {firstName}
           </h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-1.5 text-sm">
-            Here's a live overview of your LMS today.
+          <p className="text-slate-500 text-base max-w-xl">
+            {isStudent 
+              ? "Here is what's happening with your courses today."
+              : "Here is your global overview of EduFlow LMS platform operations."}
           </p>
         </div>
-        
-        {/* User Avatar */}
-        <div className="hidden sm:flex items-center gap-3 bg-white dark:bg-slate-800/50 backdrop-blur-xl border border-slate-200 dark:border-white/[0.06] rounded-full p-1.5 pr-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer shadow-sm dark:shadow-none">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-500/20">
-            {user?.name?.charAt(0).toUpperCase() || "A"}
-          </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-semibold text-slate-900 dark:text-white">{user?.name || "Administrator"}</span>
-            <span className="text-xs text-indigo-500 dark:text-indigo-300">{user?.role || "Admin"}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 mb-8">
-        <AnimatedStatsCard
-          title="Total Students"
-          value={students.length}
-          icon="🎓"
-          gradient="from-indigo-500 to-blue-600"
-          delay={0}
-        />
-        <AnimatedStatsCard
-          title="New Students"
-          value={newStudentsCount}
-          icon="✨"
-          gradient="from-cyan-500 to-blue-500"
-          trend={{ value: 100, label: "last 7 days" }}
-          delay={100}
-        />
-        <AnimatedStatsCard
-          title="Total Courses"
-          value={courses.length}
-          icon="📚"
-          gradient="from-emerald-500 to-teal-600"
-          delay={200}
-        />
-        <AnimatedStatsCard
-          title="Total Enrollments"
-          value={enrollments.length}
-          icon="📋"
-          gradient="from-violet-500 to-purple-600"
-          delay={300}
-        />
-        <AnimatedStatsCard
-          title="New Enrollments"
-          value={newEnrollmentsCount}
-          icon="🚀"
-          gradient="from-fuchsia-500 to-pink-600"
-          trend={{ value: 100, label: "last 7 days" }}
-          delay={400}
-        />
-        <AnimatedStatsCard
-          title="Total Revenue"
-          value={totalRevenue}
-          icon="💰"
-          prefix="₹"
-          gradient="from-amber-500 to-orange-600"
-          delay={500}
-        />
-      </div>
-
-      {/* Charts Row 1: Trend & Status */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        <div className="lg:col-span-2 bg-white dark:bg-slate-800/40 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-2xl p-6 transition-all duration-300 hover:-translate-y-1 shadow-sm dark:shadow-none hover:shadow-xl dark:hover:shadow-2xl hover:shadow-indigo-500/10 dark:hover:border-white/20">
-          <RevenueTrendChart />
-        </div>
-
-        <div className="bg-white dark:bg-slate-800/40 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-2xl p-6 transition-all duration-300 hover:-translate-y-1 shadow-sm dark:shadow-none hover:shadow-xl dark:hover:shadow-2xl hover:shadow-indigo-500/10 dark:hover:border-white/20">
-          <h2 className="text-base font-semibold text-slate-900 dark:text-white mb-5">
-            Enrollment Status
-          </h2>
-          {enrollments.length > 0 ? (
-             <DonutChart segments={donutSegments} />
-          ) : (
-             <div className="flex items-center justify-center h-48 text-slate-500 text-sm">No data available</div>
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => {
+              if (isStudent) router.push('/courses');
+              else addToast("Reports module coming in Phase 4", "info");
+            }}
+            className="px-6 py-2.5 bg-primary text-white font-semibold rounded-lg hover:bg-primary-hover transition-colors shadow-sm active:scale-95"
+          >
+            {isStudent ? "Browse Courses" : "View Reports"}
+          </button>
+          {!isStudent && (
+            <button 
+              onClick={() => router.push('/courses')}
+              className="px-6 py-2.5 bg-white text-slate-700 font-semibold rounded-lg border border-surface-border hover:bg-slate-50 transition-colors shadow-sm active:scale-95"
+            >
+              Add New Course
+            </button>
           )}
         </div>
-      </div>
+      </motion.div>
 
-      {/* Charts Row 2: Popularity & Actions */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        <div className="lg:col-span-2 bg-white dark:bg-slate-800/40 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-2xl p-6 transition-all duration-300 hover:-translate-y-1 shadow-sm dark:shadow-none hover:shadow-xl dark:hover:shadow-2xl hover:shadow-indigo-500/10 dark:hover:border-white/20">
-          <h2 className="text-base font-semibold text-slate-900 dark:text-white mb-5">
-            Course Popularity
-          </h2>
-          <CoursePopularityBar courses={courses} enrollments={enrollments} />
-        </div>
+      {/* ── ADMIN VIEW ──────────────────────────────────────────────── */}
+      {!isStudent && (
+        <>
+          <motion.div variants={item} className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            <StatCard
+              title="Students"
+              value={students.length}
+              icon={<Users size={20} />}
+              iconColorClass="text-blue-600"
+              iconBgClass="bg-blue-50"
+              delay={0.1}
+            />
+            <StatCard
+              title="Courses"
+              value={courses.length}
+              icon={<BookOpen size={20} />}
+              iconColorClass="text-indigo-600"
+              iconBgClass="bg-indigo-50"
+              delay={0.2}
+            />
+            <StatCard
+              title="Enrollments"
+              value={enrollments.length}
+              icon={<ClipboardList size={20} />}
+              iconColorClass="text-emerald-600"
+              iconBgClass="bg-emerald-50"
+              delay={0.3}
+            />
+            <StatCard
+              title="Revenue"
+              value={totalRevenue}
+              icon={<IndianRupee size={20} />}
+              prefix="₹"
+              iconColorClass="text-amber-600"
+              iconBgClass="bg-amber-50"
+              delay={0.4}
+            />
+            <StatCard
+              title="Completion Rate"
+              value={completionRate}
+              suffix="%"
+              icon={<Award size={20} />}
+              iconColorClass="text-rose-600"
+              iconBgClass="bg-rose-50"
+              delay={0.5}
+            />
+          </motion.div>
 
-        <div className="bg-white dark:bg-slate-800/40 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-2xl p-6 transition-all duration-300 hover:-translate-y-1 shadow-sm dark:shadow-none hover:shadow-xl dark:hover:shadow-2xl hover:shadow-indigo-500/10 dark:hover:border-white/20">
-          <h2 className="text-base font-semibold text-slate-900 dark:text-white mb-4">
-            Quick Actions
-          </h2>
-          <QuickActions />
-        </div>
-      </div>
+          {/* CHARTS ROW 1 */}
+          <motion.div variants={item} className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            <DashboardCard className="xl:col-span-2 flex flex-col">
+              <div className="mb-6">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Revenue Trend</h3>
+                <p className="text-sm text-slate-500">Live monthly revenue tracking</p>
+              </div>
+              <div className="flex-1 min-h-[300px]">
+                <RevenueChart data={revenueData} />
+              </div>
+            </DashboardCard>
+            <DashboardCard className="flex flex-col">
+              <div className="mb-6">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Course Popularity</h3>
+                <p className="text-sm text-slate-500">Top 5 courses by enrollment</p>
+              </div>
+              <div className="flex-1 min-h-[300px]">
+                <CoursePopularityChart data={popularityData} />
+              </div>
+            </DashboardCard>
+          </motion.div>
 
-      {/* Activity Feed */}
-      <div className="bg-white dark:bg-slate-800/40 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-2xl p-6 transition-all duration-300 hover:-translate-y-1 shadow-sm dark:shadow-none hover:shadow-xl dark:hover:shadow-2xl hover:shadow-indigo-500/10 dark:hover:border-white/20">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-semibold text-slate-900 dark:text-white">
-            Recent Activity
-          </h2>
-          <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-400/10 px-3 py-1 rounded-full border border-emerald-200 dark:border-emerald-400/20">
-            Live updates
-          </span>
-        </div>
-        {activities.length > 0 ? (
-          <ActivityTimeline activities={activities} maxItems={6} />
-        ) : (
-          <div className="text-slate-500 text-sm py-4">No recent activity.</div>
-        )}
-      </div>
-    </div>
+          {/* CHARTS ROW 2 */}
+          <motion.div variants={item} className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            <DashboardCard className="flex flex-col">
+              <div className="mb-6">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Enrollment by Category</h3>
+                <p className="text-sm text-slate-500">Distribution across topics</p>
+              </div>
+              <div className="flex-1 min-h-[300px]">
+                <EnrollmentDistribution data={distributionData} />
+              </div>
+            </DashboardCard>
+            <DashboardCard className="xl:col-span-2 flex flex-col">
+              <div className="mb-6">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Platform Activity</h3>
+                <p className="text-sm text-slate-500">Live platform engagement events</p>
+              </div>
+              <div className="flex-1 min-h-[300px]">
+                <MonthlyActivityChart data={activityData} />
+              </div>
+            </DashboardCard>
+          </motion.div>
+
+          {/* WIDGETS ROW */}
+          <motion.div variants={item} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <DashboardCard className="lg:col-span-2">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6">Popular Courses</h3>
+              <PopularCoursesWidget courses={courses} enrollments={enrollments} />
+            </DashboardCard>
+            <div className="space-y-6">
+              <DashboardCard>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6">Quick Actions</h3>
+                <QuickActions />
+              </DashboardCard>
+              <DashboardCard>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6">Upcoming Tasks</h3>
+                <UpcomingTasks />
+              </DashboardCard>
+            </div>
+          </motion.div>
+
+          {/* ACTIVITY ROW */}
+          <motion.div variants={item}>
+            <DashboardCard>
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Live Activity</h3>
+                <span className="px-2.5 py-1 bg-emerald-500/10 text-emerald-500 text-xs font-semibold rounded-full border border-emerald-500/20">
+                  Real-time
+                </span>
+              </div>
+              <ActivityTimeline activities={activities} maxItems={8} />
+            </DashboardCard>
+          </motion.div>
+        </>
+      )}
+
+      {/* ── STUDENT VIEW ────────────────────────────────────────────── */}
+      {isStudent && (
+        <motion.div variants={item} className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          <div className="xl:col-span-2 space-y-6">
+            <DashboardCard>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6">My Courses</h3>
+              {/* Fallback to Popular Courses widget for demo */}
+              <PopularCoursesWidget courses={courses} enrollments={enrollments} />
+            </DashboardCard>
+            <DashboardCard>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6">Recent Activity</h3>
+              <ActivityTimeline activities={activities.filter(a => a.type === "enrollment")} maxItems={5} />
+            </DashboardCard>
+          </div>
+          <div className="space-y-6">
+            <DashboardCard>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6">Upcoming Assignments</h3>
+              <UpcomingTasks />
+            </DashboardCard>
+          </div>
+        </motion.div>
+      )}
+    </motion.div>
   );
 }

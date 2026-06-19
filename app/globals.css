@@ -5,64 +5,169 @@
 /* ── Design Tokens ────────────────────────────────────────────────────────── */
 
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  /* Core Backgrounds */
+  --background: #f0f4f8; /* Soft beautiful cool gray/blue */
+  --foreground: #111827; /* Slate 900 */
+  
+  /* Surfaces (Cards, Modals, Dropdowns) */
+  --surface: #ffffff;
+  --surface-muted: #f8fafc; /* Lighter Slate 50 */
+  --surface-border: #e5e7eb; /* Gray 200 */
+  
+  /* Primary Action Brand Color (Coursera Blue) */
+  --primary: #0056d2;
+  --primary-hover: #0045a9;
+  --primary-foreground: #ffffff;
+  --primary-light: #e6f0ff; /* Light Blue */
+
+  /* Semantic Colors */
+  --success: #059669; /* Emerald 600 */
+  --success-light: #d1fae5;
+  --success-foreground: #065f46;
+  
+  --warning: #d97706; /* Amber 600 */
+  --warning-light: #fef3c7;
+  --warning-foreground: #92400e;
+  
+  --danger: #dc2626; /* Red 600 */
+  --danger-light: #fee2e2;
+  --danger-foreground: #991b1b;
 }
 
 .dark {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+  /* Core Backgrounds */
+  --background: #0b1120; /* Deep rich blue/slate */
+  --foreground: #f8fafc; /* Slate 50 */
+  
+  /* Surfaces */
+  --surface: #151e32; /* Slightly lighter deep blue */
+  --surface-muted: #334155; /* Slate 700 */
+  --surface-border: #475569; /* Slate 600 */
+  
+  /* Primary Action */
+  --primary: #3b82f6; /* Blue 500 */
+  --primary-hover: #60a5fa; /* Blue 400 */
+  --primary-foreground: #ffffff;
+  --primary-light: #1e3a8a; /* Blue 900 */
+
+  /* Semantic Colors */
+  --success: #10b981;
+  --success-light: #064e3b;
+  --success-foreground: #a7f3d0;
+  
+  --warning: #f59e0b;
+  --warning-light: #78350f;
+  --warning-foreground: #fde68a;
+  
+  --danger: #ef4444;
+  --danger-light: #7f1d1d;
+  --danger-foreground: #fecaca;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-border: var(--surface-border);
+  
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-light: var(--primary-light);
+
+  --color-success: var(--success);
+  --color-success-light: var(--success-light);
+  --color-success-foreground: var(--success-foreground);
+
+  --color-warning: var(--warning);
+  --color-warning-light: var(--warning-light);
+  --color-warning-foreground: var(--warning-foreground);
+
+  --color-danger: var(--danger);
+  --color-danger-light: var(--danger-light);
+  --color-danger-foreground: var(--danger-foreground);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+  
+  /* Premium Crisp Shadows */
+  --shadow-soft: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-card: 0 2px 4px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
+  --shadow-card-dark: 0 4px 6px -1px rgba(0,0,0,0.2), 0 2px 4px -2px rgba(0,0,0,0.2);
+  --shadow-glow: none; /* Removed neon glow */
 }
 
-/* ── Body ─────────────────────────────────────────────────────────────────── */
+/* ── Body & Reset ─────────────────────────────────────────────────────────── */
 
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 html {
   scroll-behavior: smooth;
 }
 
-/* ── Toast Slide-In Animation ─────────────────────────────────────────────── */
+/* Custom Scrollbar for a premium feel */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--surface-border);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--surface-muted);
+}
+
+/* ── Utilities ────────────────────────────────────────────────────────────── */
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.dark .glass-panel {
+  background: rgba(24, 24, 27, 0.7);
+  border: 1px solid rgba(63, 63, 70, 0.4);
+}
+
+/* ── Animations ───────────────────────────────────────────────────────────── */
 
 @keyframes slide-in-right {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
 }
 
 .animate-slide-in-right {
-  animation: slide-in-right 0.3s ease-out forwards;
+  animation: slide-in-right 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* ── Fade In Animation ────────────────────────────────────────────────────── */
-
 @keyframes fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .animate-fade-in {
-  animation: fade-in 0.6s ease-out forwards;
+  animation: fade-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-scale-in {
+  animation: scale-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

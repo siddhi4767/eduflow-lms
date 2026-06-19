@@ -18,6 +18,8 @@ export const metadata: Metadata = {
   description: "A modern Learning Management System built with Next.js",
 };
 
+import SessionProviderWrapper from "./components/SessionProviderWrapper";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -29,7 +31,9 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased dark-theme`}
     >
       <body>
-        <ClientShell>{children}</ClientShell>
+        <SessionProviderWrapper>
+          <ClientShell>{children}</ClientShell>
+        </SessionProviderWrapper>
       </body>
     </html>
   );
