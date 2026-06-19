@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "./app/lib/prisma";
 import bcrypt from "bcryptjs";
 import { PrismaAdapter } from "@auth/prisma-adapter";
+import { cognitoSignIn } from "./lib/aws/cognito";
 import { authConfig } from "./auth.config";
 import { CredentialsSignin } from "next-auth";
 
@@ -34,29 +35,28 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const { email, password } = parsedCredentials.data;
         console.log("LOGIN ATTEMPT", email);
         
-        const user = await prisma.user.findUnique({ where: { email } });
-        console.log("USER FOUND", !!user);
-        
-        if (!user) {
-          return null;
-        }
-        
-        // console.log("EMAIL VERIFIED", user.emailVerified);
-        
-        // Temporarily bypassed until SMTP email verification is implemented
-        // if (!user.emailVerified) {
-        //   throw new UnverifiedEmailError();
-        // }
-
-        if (!user.password) {
-           return null;
-        }
-
-        const passwordsMatch = await bcrypt.compare(password, user.password);
-        console.log("PASSWORD MATCH", passwordsMatch);
-        
-        if (passwordsMatch) {
-           return user;
+        try {
+          // Attempt AWS Cognito authentication
+          const authResult = await cognitoSignIn(email, password);
+          
+          if (authResult?.AccessToken) {
+            console.log("COGNITO AUTH SUCCESS");
+            const user = await prisma.user.findUnique({ where: { email } });
+            if (user) return user;
+            return null;
+          }
+        } catch (error: any) {
+          console.log("COGNITO AUTH FAILED:", error.name || error.message);
+          
+          // Fallback to local database authentication during migration
+          const user = await prisma.user.findUnique({ where: { email } });
+          if (user && user.password) {
+            const passwordsMatch = await bcrypt.compare(password, user.password);
+            if (passwordsMatch) {
+              console.log("FALLBACK LOCAL AUTH SUCCESS");
+              return user;
+            }
+          }
         }
         
         return null;

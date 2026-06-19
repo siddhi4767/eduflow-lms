@@ -9,6 +9,7 @@ import { z } from "zod";
 import { prisma } from "../../../lib/prisma";
 import { generatePasswordResetToken } from "../../../../lib/tokens";
 import { sendPasswordResetEmail } from "../../../../lib/mail";
+import { cognitoForgotPassword } from "../../../../lib/aws/cognito";
 
 const resetSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -36,6 +37,14 @@ export async function POST(req: Request) {
     if (!existingUser) {
       // Return success even if user doesn't exist for security reasons (prevent enumeration)
       return NextResponse.json({ success: "Reset email sent!" });
+    }
+
+    // Trigger AWS Cognito Forgot Password
+    try {
+      await cognitoForgotPassword(email);
+      console.log("Triggered AWS Cognito forgot password");
+    } catch (cognitoError: any) {
+      console.error("[COGNITO_RESET_ERROR]", cognitoError.name || cognitoError.message);
     }
 
     // Generate token and send email

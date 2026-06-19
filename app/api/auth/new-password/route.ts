@@ -8,6 +8,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "../../../lib/prisma";
+import { cognitoConfirmForgotPassword } from "../../../../lib/aws/cognito";
 
 const newPasswordSchema = z.object({
   password: z.string().min(6, "Minimum 6 characters required"),
@@ -49,7 +50,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Email does not exist!" }, { status: 400 });
     }
 
-    // Hash new password and update user
+    // Attempt AWS Cognito Confirm Forgot Password
+    try {
+      await cognitoConfirmForgotPassword(existingToken.email, token, password);
+      console.log("AWS Cognito password confirmed successfully");
+    } catch (cognitoError: any) {
+      console.error("[COGNITO_NEW_PASSWORD_ERROR]", cognitoError.name || cognitoError.message);
+    }
+
+    // Hash new password and update user in local DB
     const hashedPassword = await bcrypt.hash(password, 10);
     await prisma.user.update({
       where: { id: existingUser.id },

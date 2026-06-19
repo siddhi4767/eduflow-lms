@@ -11,6 +11,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "../../../lib/prisma";
 import { generateVerificationToken } from "../../../../lib/tokens";
 import { sendVerificationEmail } from "../../../../lib/mail";
+import { cognitoSignUp } from "../../../../lib/aws/cognito";
 
 const registerSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -39,6 +40,16 @@ export async function POST(req: Request) {
         { error: "An account with this email already exists" },
         { status: 409 }
       );
+    }
+
+    // Attempt to register in AWS Cognito first
+    try {
+      await cognitoSignUp(email, password, name, "STUDENT");
+      console.log("Successfully registered in AWS Cognito");
+    } catch (cognitoError: any) {
+      console.error("[COGNITO_REGISTER_ERROR]", cognitoError.name || cognitoError.message);
+      // Decide whether to fail the whole registration or continue dual-write
+      // Continuing for now to ensure local DB state is maintained
     }
 
     // Hash password and create user
